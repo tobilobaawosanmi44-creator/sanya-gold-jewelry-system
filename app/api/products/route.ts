@@ -1,0 +1,4 @@
+import {NextResponse} from 'next/server';import {z} from 'zod';import {db} from '@/lib/db';import {requireUser} from '@/lib/auth';
+const s=z.object({name:z.string().min(2),sku:z.string().min(2),category:z.string(),description:z.string().optional(),price:z.coerce.number().positive(),stockQty:z.coerce.number().int().min(0)});
+export async function GET(){const u=await requireUser();return NextResponse.json(await db.product.findMany({where:{businessId:u.businessId},orderBy:{createdAt:'desc'}}))}
+export async function POST(req:Request){const u=await requireUser();const b=s.parse(await req.json());const p=await db.product.create({data:{businessId:u.businessId,...b}});await db.auditLog.create({data:{businessId:u.businessId,userId:u.id,action:'PRODUCT_CREATED',recordType:'PRODUCT',recordId:p.id}});return NextResponse.json(p,{status:201})}
