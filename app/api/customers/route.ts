@@ -41,3 +41,36 @@ export async function POST(req: Request) {
     return fail(e);
   }
 }
+
+export async function DELETE(req: Request) {
+  const u = await requireUser();
+  try {
+    const id = new URL(req.url).searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Customer ID is required.' }, { status: 400 });
+
+    const customer = await db.customer.findFirst({
+      where: { id, businessId: u.businessId },
+      include: { _count: { select: { sales: true } } },
+    });
+
+    if (!customer) return NextResponse.json({ error: 'Customer not found.' }, { status: 404 });
+
+    // Never delete a customer that has sales history. This protects receipts,
+    // reports and financial records from losing their customer relationship.
+    if (customer._count.sales > 0) {
+      return NextResponse.json(
+        { error: 'This customer cannot be deleted because they have sales/receipt history. Keep the customer record to preserve business records.' },
+        { status: 409 },
+      );
+    }
+
+    await db.customer.delete({ where: { id: customer.id } });
+    await db.auditLog.create({
+      data: { businessId: u.businessId, userId: u.id, action: 'CUSTOMER_DELETED', recordType: 'CUSTOMER', recordId: customer.id },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}
