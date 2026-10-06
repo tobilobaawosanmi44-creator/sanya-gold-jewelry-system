@@ -1,17 +1,198 @@
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
-generator client { provider = "prisma-client-js" }
-enum Role { SUPER_ADMIN STAFF }
-enum PaymentStatus { PAID PARTIALLY_PAID PENDING CANCELLED }
-enum PaymentMethod { CASH BANK_TRANSFER POS CARD OTHER }
-enum ReceiptStatus { VALID CANCELLED }
-model Business { id String @id @default(cuid()); name String; description String?; address String; phone String; email String; logoUrl String?; website String?; whatsapp String?; primaryColor String @default("#C9A227"); secondaryColor String @default("#FFFFFF"); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; users User[]; customers Customer[]; products Product[]; sales Sale[]; settings Setting[]; receiptCounter Int @default(0) }
-model User { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); name String; email String @unique; passwordHash String; role Role @default(STAFF); active Boolean @default(true); createdAt DateTime @default(now()); sales Sale[]; auditLogs AuditLog[] }
-model Customer { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); name String; phone String; email String?; address String?; createdAt DateTime @default(now()); sales Sale[]; @@index([businessId,name]); @@index([phone]) }
-model Product { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); name String; sku String; category String; description String?; price Decimal @db.Decimal(14,2); imageUrl String?; stockQty Int @default(0); active Boolean @default(true); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; saleItems SaleItem[]; @@unique([businessId,sku]); @@index([businessId,name]) }
-model Sale { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); customerId String; customer Customer @relation(fields:[customerId], references:[id]); staffId String; staff User @relation(fields:[staffId], references:[id]); subtotal Decimal @db.Decimal(14,2); discount Decimal @default(0) @db.Decimal(14,2); tax Decimal @default(0) @db.Decimal(14,2); total Decimal @db.Decimal(14,2); amountPaid Decimal @default(0) @db.Decimal(14,2); balance Decimal @default(0) @db.Decimal(14,2); paymentMethod PaymentMethod; paymentStatus PaymentStatus; notes String?; customerMessage String?; createdAt DateTime @default(now()); items SaleItem[]; receipt Receipt?; payments Payment[]; @@index([businessId,createdAt]); @@index([customerId]) }
-model SaleItem { id String @id @default(cuid()); saleId String; sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade); productId String; product Product @relation(fields:[productId], references:[id]); description String?; quantity Int; unitPrice Decimal @db.Decimal(14,2); discount Decimal @default(0) @db.Decimal(14,2); subtotal Decimal @db.Decimal(14,2) }
-model Receipt { id String @id @default(cuid()); saleId String @unique; sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade); receiptNumber String @unique; verificationToken String @unique; status ReceiptStatus @default(VALID); createdAt DateTime @default(now()); cancelledAt DateTime? }
-model Payment { id String @id @default(cuid()); saleId String; sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade); amount Decimal @db.Decimal(14,2); method PaymentMethod; createdAt DateTime @default(now()) }
-model AuditLog { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); userId String?; user User? @relation(fields:[userId], references:[id], onDelete:SetNull); action String; recordType String?; recordId String?; metadata Json?; ipAddress String?; userAgent String?; createdAt DateTime @default(now()); @@index([businessId,createdAt]) }
-model Notification { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); title String; message String; read Boolean @default(false); createdAt DateTime @default(now()) }
-model Setting { id String @id @default(cuid()); businessId String; business Business @relation(fields:[businessId], references:[id], onDelete:Cascade); key String; value String; @@unique([businessId,key]) }
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  STAFF
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIALLY_PAID
+  PENDING
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  POS
+  CARD
+  OTHER
+}
+
+enum ReceiptStatus {
+  VALID
+  CANCELLED
+}
+
+model Business {
+  id String @id @default(cuid())
+  name String
+  description String?
+  address String
+  phone String
+  email String
+  logoUrl String?
+  website String?
+  whatsapp String?
+  primaryColor String @default("#C9A227")
+  secondaryColor String @default("#FFFFFF")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users User[]
+  customers Customer[]
+  products Product[]
+  sales Sale[]
+  settings Setting[]
+  auditLogs AuditLog[]
+  notifications Notification[]
+  receiptCounter Int @default(0)
+}
+
+model User {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  name String
+  email String @unique
+  passwordHash String
+  role Role @default(STAFF)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  sales Sale[]
+  auditLogs AuditLog[]
+}
+
+model Customer {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  name String
+  phone String
+  email String?
+  address String?
+  createdAt DateTime @default(now())
+  sales Sale[]
+  @@index([businessId,name])
+  @@index([phone])
+}
+
+model Product {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  name String
+  sku String
+  category String
+  description String?
+  price Decimal @db.Decimal(14,2)
+  imageUrl String?
+  stockQty Int @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  saleItems SaleItem[]
+  @@unique([businessId,sku])
+  @@index([businessId,name])
+}
+
+model Sale {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  customerId String
+  customer Customer @relation(fields:[customerId], references:[id])
+  staffId String
+  staff User @relation(fields:[staffId], references:[id])
+  subtotal Decimal @db.Decimal(14,2)
+  discount Decimal @default(0) @db.Decimal(14,2)
+  tax Decimal @default(0) @db.Decimal(14,2)
+  total Decimal @db.Decimal(14,2)
+  amountPaid Decimal @default(0) @db.Decimal(14,2)
+  balance Decimal @default(0) @db.Decimal(14,2)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus
+  notes String?
+  customerMessage String?
+  createdAt DateTime @default(now())
+  items SaleItem[]
+  receipt Receipt?
+  payments Payment[]
+  @@index([businessId,createdAt])
+  @@index([customerId])
+}
+
+model SaleItem {
+  id String @id @default(cuid())
+  saleId String
+  sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade)
+  productId String
+  product Product @relation(fields:[productId], references:[id])
+  description String?
+  quantity Int
+  unitPrice Decimal @db.Decimal(14,2)
+  discount Decimal @default(0) @db.Decimal(14,2)
+  subtotal Decimal @db.Decimal(14,2)
+}
+
+model Receipt {
+  id String @id @default(cuid())
+  saleId String @unique
+  sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade)
+  receiptNumber String @unique
+  verificationToken String @unique
+  status ReceiptStatus @default(VALID)
+  createdAt DateTime @default(now())
+  cancelledAt DateTime?
+}
+
+model Payment {
+  id String @id @default(cuid())
+  saleId String
+  sale Sale @relation(fields:[saleId], references:[id], onDelete:Cascade)
+  amount Decimal @db.Decimal(14,2)
+  method PaymentMethod
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  userId String?
+  user User? @relation(fields:[userId], references:[id], onDelete:SetNull)
+  action String
+  recordType String?
+  recordId String?
+  metadata Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  @@index([businessId,createdAt])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  title String
+  message String
+  read Boolean @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id String @id @default(cuid())
+  businessId String
+  business Business @relation(fields:[businessId], references:[id], onDelete:Cascade)
+  key String
+  value String
+  @@unique([businessId,key])
+}
