@@ -13,7 +13,6 @@ function localParts(date = new Date()) {
 }
 
 function lagosBoundary(year: number, month: number, day: number) {
-  // Nigeria uses UTC+1 year-round. Build the local midnight and convert it to UTC.
   return new Date(Date.UTC(year, month, day, -1, 0, 0, 0));
 }
 
@@ -21,10 +20,9 @@ function boundaries() {
   const now = localParts();
   const dayStart = lagosBoundary(now.year, now.month, now.day);
   const nextDay = lagosBoundary(now.year, now.month, now.day + 1);
-  const day = new Date(dayStart);
-  const weekday = new Date(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) + 'T00:00:00+01:00').getDay();
+  const weekday = dayStart.getUTCDay();
   const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
-  const weekStart = new Date(day.getTime() + mondayOffset * 86400000);
+  const weekStart = new Date(dayStart.getTime() + mondayOffset * 86400000);
   const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
   const monthStart = lagosBoundary(now.year, now.month, 1);
   const monthEnd = lagosBoundary(now.year, now.month + 1, 1);
