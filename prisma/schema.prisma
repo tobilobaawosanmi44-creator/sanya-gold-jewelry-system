@@ -32,6 +32,12 @@ enum ReceiptStatus {
   CANCELLED
 }
 
+enum StockMovementType {
+  SALE
+  RESTOCK
+  ADJUSTMENT
+}
+
 model Business {
   id String @id @default(cuid())
   name String
@@ -99,6 +105,7 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   saleItems SaleItem[]
+  stockMovements StockMovement[]
   @@unique([businessId,sku])
   @@index([businessId,name])
 }
@@ -140,6 +147,21 @@ model SaleItem {
   unitPrice Decimal @db.Decimal(14,2)
   discount Decimal @default(0) @db.Decimal(14,2)
   subtotal Decimal @db.Decimal(14,2)
+}
+
+model StockMovement {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Cascade)
+  type StockMovementType
+  quantity Int
+  previousQty Int
+  newQty Int
+  saleId String?
+  note String?
+  createdAt DateTime @default(now())
+  @@index([productId,createdAt])
+  @@index([saleId])
 }
 
 model Receipt {
