@@ -1,2 +1,99 @@
-import {requireUser} from '@/lib/auth';import {db} from '@/lib/db';import {notFound} from 'next/navigation';import {money} from '@/lib/utils';import QRCode from 'qrcode';
-export default async function ReceiptPage({params}:{params:Promise<{id:string}>}){const u=await requireUser();const {id}=await params;const s=await db.sale.findFirst({where:{id,businessId:u.businessId},include:{customer:true,staff:true,items:{include:{product:true}},receipt:true}});if(!s||!s.receipt)return notFound();const base=process.env.NEXT_PUBLIC_APP_URL||'http://localhost:3000';const qr=await QRCode.toDataURL(`${base}/verify/${s.receipt.receiptNumber}`);return <main className="min-h-screen bg-[#f8f7f3] p-4 md:p-8"><div className="max-w-3xl mx-auto"><div className="flex justify-between mb-5"><a href="/receipts" className="btn btn-light">← Receipts</a><div className="flex gap-2"><a className="btn btn-light" href={`/api/receipts/${s.id}/pdf`}>Print / PDF</a></div></div><article className="bg-white border border-[#e6dfcf] shadow-xl p-6 md:p-10"><div className="flex justify-between gap-5 border-b pb-6"><div><div className="text-2xl font-black">SANYA <span className="gold">GOLD</span></div><div className="text-[10px] tracking-[.25em] text-gray-500">JEWELRY</div><div className="text-xs text-gray-500 mt-3">18KT Italian Gold Jewelry<br/>Ile-Ife, Osun State, Nigeria<br/>08082423674 · sanyagold285@gmail.com</div></div><div className="text-right"><div className="text-xs text-gray-400">RECEIPT</div><div className="font-black">{s.receipt.receiptNumber}</div><div className="text-xs text-gray-500 mt-2">{new Date(s.createdAt).toLocaleString('en-NG')}</div></div></div><div className="grid sm:grid-cols-2 gap-4 py-6"><div><div className="text-[10px] uppercase text-gray-400">Customer</div><div className="font-bold">{s.customer.name}</div><div className="text-xs text-gray-500">{s.customer.phone}</div></div><div><div className="text-[10px] uppercase text-gray-400">Staff</div><div className="font-bold">{s.staff.name}</div></div></div><table className="w-full text-sm"><thead><tr className="border-y text-left text-xs text-gray-400"><th className="py-3">Item</th><th>Qty</th><th className="text-right">Unit</th><th className="text-right">Subtotal</th></tr></thead><tbody>{s.items.map(i=><tr key={i.id} className="border-b"><td className="py-3"><b>{i.product.name}</b><div className="text-xs text-gray-400">{i.product.category}</div></td><td>{i.quantity}</td><td className="text-right">{money(i.unitPrice.toString())}</td><td className="text-right">{money(i.subtotal.toString())}</td></tr>)}</tbody></table><div className="flex justify-end mt-5"><div className="w-64 space-y-2 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(s.subtotal.toString())}</span></div><div className="flex justify-between"><span>Discount</span><span>-{money(s.discount.toString())}</span></div><div className="flex justify-between text-lg font-black border-t pt-3"><span>Total</span><span>{money(s.total.toString())}</span></div><div className="flex justify-between"><span>Paid</span><span>{money(s.amountPaid.toString())}</span></div><div className="flex justify-between"><span>Balance</span><span>{money(s.balance.toString())}</span></div></div></div><div className="mt-8 flex justify-between gap-5 border-t pt-6"><div className="text-xs text-gray-500"><b>Payment:</b> {s.paymentMethod.replace('_',' ')}<br/><b>Status:</b> {s.paymentStatus.replace('_',' ')}<br/><br/><b>All jewelry sold by Sanya Gold Jewelry is new 18KT Italian gold jewelry.</b><br/>Thank you for choosing Sanya Gold Jewelry. Your trust means everything to us.</div><div className="text-center"><img src={qr} className="w-24 h-24 mx-auto"/><div className="text-[9px] text-gray-400 mt-1">Scan to verify</div></div></div></article></div></main>}
+import { requireUser } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { notFound } from 'next/navigation';
+import { money } from '@/lib/utils';
+import QRCode from 'qrcode';
+
+export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+  const u = await requireUser();
+  const { id } = await params;
+  const s = await db.sale.findFirst({
+    where: { id, businessId: u.businessId },
+    include: { business: true, customer: true, staff: true, items: { include: { product: true } }, receipt: true },
+  });
+  if (!s || !s.receipt) return notFound();
+
+  const base = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+  const qr = await QRCode.toDataURL(`${base}/verify/${encodeURIComponent(s.receipt.receiptNumber)}`, { margin: 1, width: 260 });
+  const b = s.business;
+  const cancelled = s.receipt.status === 'CANCELLED';
+
+  return (
+    <main className="min-h-screen bg-[#f8f7f3] p-4 md:p-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex justify-between mb-5">
+          <a href="/receipts" className="btn btn-light">← Receipts</a>
+          <div className="flex gap-2">
+            <a className="btn btn-light" href={`/api/receipts/${s.id}/pdf`} target="_blank" rel="noreferrer">Print / Save as PDF</a>
+          </div>
+        </div>
+        <article className="bg-white border border-[#e6dfcf] shadow-xl p-6 md:p-10">
+          <div className="flex justify-between gap-5 border-b pb-6">
+            <div>
+              <div className="text-2xl font-black">{b.name.toUpperCase()}</div>
+              <div className="text-xs text-gray-500 mt-3">
+                {b.description}<br />{b.address}<br />{b.phone} · {b.email}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-gray-400">RECEIPT</div>
+              <div className="font-black">{s.receipt.receiptNumber}</div>
+              <div className="text-xs text-gray-500 mt-2">{new Date(s.createdAt).toLocaleString('en-NG')}</div>
+              {cancelled && <div className="mt-2 inline-block border-2 border-red-700 text-red-700 px-2 py-0.5 text-xs font-bold">CANCELLED</div>}
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4 py-6">
+            <div>
+              <div className="text-[10px] uppercase text-gray-400">Customer</div>
+              <div className="font-bold">{s.customer.name}</div>
+              <div className="text-xs text-gray-500">{s.customer.phone}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase text-gray-400">Staff</div>
+              <div className="font-bold">{s.staff.name}</div>
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-y text-left text-xs text-gray-400">
+                <th className="py-3">Item</th><th>Qty</th><th className="text-right">Unit</th><th className="text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {s.items.map((i) => (
+                <tr key={i.id} className="border-b">
+                  <td className="py-3"><b>{i.product.name}</b><div className="text-xs text-gray-400">{i.product.category}</div></td>
+                  <td>{i.quantity}</td>
+                  <td className="text-right">{money(i.unitPrice.toString())}</td>
+                  <td className="text-right">{money(i.subtotal.toString())}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex justify-end mt-5">
+            <div className="w-64 space-y-2 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{money(s.subtotal.toString())}</span></div>
+              <div className="flex justify-between"><span>Discount</span><span>-{money(s.discount.toString())}</span></div>
+              <div className="flex justify-between text-lg font-black border-t pt-3"><span>Total</span><span>{money(s.total.toString())}</span></div>
+              <div className="flex justify-between"><span>Paid</span><span>{money(s.amountPaid.toString())}</span></div>
+              <div className="flex justify-between"><span>Balance</span><span>{money(s.balance.toString())}</span></div>
+            </div>
+          </div>
+          <div className="mt-8 flex justify-between gap-5 border-t pt-6">
+            <div className="text-xs text-gray-500">
+              <b>Payment:</b> {s.paymentMethod.replace('_', ' ')}<br />
+              <b>Status:</b> {s.paymentStatus.replace('_', ' ')}<br /><br />
+              <b>All jewelry sold by {b.name} is new 18KT Italian gold jewelry.</b><br />
+              Thank you for choosing {b.name}. Your trust means everything to us.
+            </div>
+            <div className="text-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qr} alt="Verification QR code" className="w-24 h-24 mx-auto" />
+              <div className="text-[9px] text-gray-400 mt-1">Scan to verify</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </main>
+  );
+}
