@@ -1,5 +1,6 @@
 import { Shell } from '@/components/shell';
 import { AddProduct } from '@/components/add-product';
+import { ProductManager } from '@/components/product-manager';
 import { requireUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { money } from '@/lib/utils';
@@ -14,13 +15,13 @@ export default async function Products() {
         <div className="card p-5">
           <div className="mb-5">
             <h2 className="font-bold text-lg">Catalogue</h2>
-            <p className="text-xs text-gray-400">{rows.length} products</p>
+            <p className="text-xs text-gray-400">{rows.length} products · edit or remove catalogue items below</p>
           </div>
           <div className="table-wrap">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y text-left text-xs text-gray-400">
-                  <th className="py-3">Product</th><th>SKU</th><th>Category</th><th className="text-right">Price</th><th className="text-right">In stock</th>
+                  <th className="py-3">Product</th><th>SKU</th><th>Category</th><th className="text-right">Price</th><th className="text-right">In stock</th><th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -31,10 +32,11 @@ export default async function Products() {
                     <td>{p.category}</td>
                     <td className="text-right">{money(p.price.toString())}</td>
                     <td className={`text-right ${p.stockQty < 5 ? 'text-red-600 font-bold' : ''}`}>{p.stockQty}</td>
+                    <td className="text-right"><ProductManager product={{ ...p, price: p.price.toString(), description: p.description || '' }} /></td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={5} className="py-8 text-center text-gray-400">No products yet. Add your first one.</td></tr>
+                  <tr><td colSpan={6} className="py-8 text-center text-gray-400">No products yet. Add your first one.</td></tr>
                 )}
               </tbody>
             </table>
