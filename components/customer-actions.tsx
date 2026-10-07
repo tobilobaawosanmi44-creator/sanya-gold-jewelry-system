@@ -19,7 +19,7 @@ export function CustomerActions({ id, name, hasSales }: { id: string; name: stri
     setBusy(true);
     setError('');
     try {
-      await api(`/api/customers?id=${encodeURIComponent(id)}`, jsonInit('DELETE'));
+      await api(`/api/customers?id=${encodeURIComponent(id)}`, jsonInit('DELETE', null));
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
