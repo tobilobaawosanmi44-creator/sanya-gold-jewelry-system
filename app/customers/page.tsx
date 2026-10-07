@@ -7,9 +7,9 @@ import { db } from '@/lib/db';
 export default async function Customers() {
   const u = await requireUser();
   const rows = await db.customer.findMany({
-    where: { businessId: u.businessId },
+    where: { businessId: u.businessId, active: true },
     orderBy: { createdAt: 'desc' },
-    take: 300,
+    take: 500,
     include: { _count: { select: { sales: true } } },
   });
 
@@ -19,13 +19,13 @@ export default async function Customers() {
         <div className="card p-5">
           <div className="mb-5">
             <h2 className="font-bold text-lg">All customers</h2>
-            <p className="text-xs text-gray-400">{rows.length} on record</p>
+            <p className="text-xs text-gray-400">{rows.length} on record · edit or remove customers below</p>
           </div>
           <div className="table-wrap">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y text-left text-xs text-gray-400">
-                  <th className="py-3">Name</th><th>Phone</th><th>Email</th><th className="text-right">Receipts</th><th className="text-right">Action</th>
+                  <th className="py-3">Name</th><th>Phone</th><th>Email</th><th className="text-right">Receipts</th><th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -35,7 +35,9 @@ export default async function Customers() {
                     <td>{c.phone}</td>
                     <td className="text-gray-500">{c.email}</td>
                     <td className="text-right">{c._count.sales}</td>
-                    <td className="text-right"><CustomerActions id={c.id} name={c.name} hasSales={c._count.sales > 0} /></td>
+                    <td className="text-right">
+                      <CustomerActions c={{ id: c.id, name: c.name, phone: c.phone, email: c.email ?? '', address: c.address ?? '', receipts: c._count.sales }} />
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (

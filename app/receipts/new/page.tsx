@@ -5,7 +5,7 @@ import { api, jsonInit } from '@/lib/client';
 
 type Customer = { id: string; name: string; phone: string };
 type Product = { id: string; name: string; price: string | number; stockQty?: number };
-type Line = { productId: string; quantity: number; unitPrice: number; discount: number };
+type Line = { productId: string; quantity: number; unitPrice: string };
 
 const naira = (n: number) => `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -37,11 +37,15 @@ export default function NewReceipt() {
       .finally(() => setLoading(false));
   }, []);
 
-  const total = lines.reduce((a, l) => a + l.quantity * l.unitPrice - l.discount, 0);
+  const lineTotal = (l: Line) => l.quantity * (Number(l.unitPrice) || 0);
+  const total = lines.reduce((a, l) => a + lineTotal(l), 0);
+  const productOf = (id: string) => products.find((x) => x.id === id);
+  const pricesOk = lines.length > 0 && lines.every((l) => Number(l.unitPrice) > 0);
+  const stockOk = lines.every((l) => l.quantity <= (productOf(l.productId)?.stockQty ?? Infinity));
 
   function addLine() {
     const p = products[0];
-    if (p) setLines((x) => [...x, { productId: p.id, quantity: 1, unitPrice: Number(p.price), discount: 0 }]);
+    if (p) setLines((x) => [...x, { productId: p.id, quantity: 1, unitPrice: '' }]);
   }
   const patch = (n: number, change: Partial<Line>) => setLines((a) => a.map((l, k) => (k === n ? { ...l, ...change } : l)));
 
@@ -70,7 +74,7 @@ export default function NewReceipt() {
         '/api/sales',
         jsonInit('POST', {
           customerId,
-          items: lines,
+          items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity, unitPrice: Number(l.unitPrice), discount: 0 })),
           discount: 0,
           tax: 0,
           paymentMethod: method,
@@ -131,26 +135,49 @@ export default function NewReceipt() {
               </div>
             )}
             {lines.length === 0 && <div className="border border-dashed rounded-xl p-8 text-center text-gray-400">Add a product to begin.</div>}
-            {lines.map((l, n) => (
-              <div className="grid md:grid-cols-[1fr_80px_130px_120px_32px] gap-3 border-b py-4 items-center" key={n}>
-                <select
-                  className="input"
-                  value={l.productId}
-                  onChange={(e) => {
-                    const p = products.find((x) => x.id === e.target.value);
-                    patch(n, { productId: e.target.value, unitPrice: Number(p?.price || 0) });
-                  }}
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <input className="input" type="number" min="1" value={l.quantity} onChange={(e) => patch(n, { quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} />
-                <input className="input" type="number" min="0" value={l.unitPrice} onChange={(e) => patch(n, { unitPrice: Number(e.target.value) })} />
-                <div className="font-bold">{naira(l.quantity * l.unitPrice - l.discount)}</div>
-                <button type="button" aria-label="Remove item" className="text-gray-400 hover:text-red-600 text-lg" onClick={() => setLines((a) => a.filter((_, k) => k !== n))}>✕</button>
-              </div>
-            ))}
+            {lines.map((l, n) => {
+              const p = productOf(l.productId);
+              const ref = Number(p?.price ?? 0);
+              const over = p?.stockQty !== undefined && l.quantity > p.stockQty;
+              return (
+                <div className="grid md:grid-cols-[1fr_80px_160px_120px_32px] gap-3 border-b py-4 items-start" key={n}>
+                  <div>
+                    <select
+                      className="input"
+                      value={l.productId}
+                      onChange={(e) => patch(n, { productId: e.target.value, unitPrice: '' })}
+                    >
+                      {products.map((x) => (
+                        <option key={x.id} value={x.id}>{x.name} · {x.stockQty ?? 0} in stock</option>
+                      ))}
+                    </select>
+                    {over && <div className="text-xs text-red-600 mt-1">Only {p?.stockQty} in stock.</div>}
+                  </div>
+                  <input className="input" type="number" min="1" value={l.quantity} onChange={(e) => patch(n, { quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} aria-label="Quantity" />
+                  <div>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="Enter price (₦)"
+                      value={l.unitPrice}
+                      onChange={(e) => patch(n, { unitPrice: e.target.value })}
+                      aria-label="Price per item"
+                    />
+                    {ref > 0 && !l.unitPrice && (
+                      <button type="button" className="text-[11px] text-gray-500 underline mt-1" onClick={() => patch(n, { unitPrice: String(ref) })}>
+                        Use last catalogue price {naira(ref)}
+                      </button>
+                    )}
+                  </div>
+                  <div className="font-bold pt-2">{naira(lineTotal(l))}</div>
+                  <button type="button" aria-label="Remove item" className="text-gray-400 hover:text-red-600 text-lg pt-1" onClick={() => setLines((a) => a.filter((_, k) => k !== n))}>✕</button>
+                </div>
+              );
+            })}
+            {lines.length > 0 && !pricesOk && <p className="text-xs text-amber-700 mt-3">Enter the price for every item before generating the receipt.</p>}
           </section>
 
           <aside className="card p-5 h-fit">
@@ -179,7 +206,7 @@ export default function NewReceipt() {
             <div className="border-t pt-4 flex justify-between text-lg font-black">
               <span>Total</span><span>{naira(total)}</span>
             </div>
-            <button type="button" disabled={saving || !customerId || !lines.length} onClick={save} className="btn btn-gold w-full mt-5">
+            <button type="button" disabled={saving || !customerId || !pricesOk || !stockOk} onClick={save} className="btn btn-gold w-full mt-5">
               {saving ? 'Generating…' : 'Generate Receipt'}
             </button>
           </aside>

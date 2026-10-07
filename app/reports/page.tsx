@@ -1,52 +1,155 @@
 import { Shell } from '@/components/shell';
 import { requireUser } from '@/lib/auth';
-import { db } from '@/lib/db';
 import { money } from '@/lib/utils';
-import { ReportControls } from '@/components/report-controls';
+import { PERIODS, getReport, fmtDateTime, toPeriod } from '@/lib/reports';
 
-const TZ = 'Africa/Lagos';
+const METHOD: Record<string, string> = { CASH: 'Cash', BANK_TRANSFER: 'Bank transfer', POS: 'POS', CARD: 'Card', OTHER: 'Other' };
+const STATUS: Record<string, string> = { PAID: 'Paid', PARTIALLY_PAID: 'Part paid', PENDING: 'Pending' };
+const SHOW_LIMIT = 300;
 
-function localParts(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(date);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  return { year: get('year'), month: get('month') - 1, day: get('day') };
-}
-
-function lagosBoundary(year: number, month: number, day: number) {
-  return new Date(Date.UTC(year, month, day, -1, 0, 0, 0));
-}
-
-function boundaries() {
-  const now = localParts();
-  const dayStart = lagosBoundary(now.year, now.month, now.day);
-  const nextDay = lagosBoundary(now.year, now.month, now.day + 1);
-  const weekday = dayStart.getUTCDay();
-  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
-  const weekStart = new Date(dayStart.getTime() + mondayOffset * 86400000);
-  const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
-  const monthStart = lagosBoundary(now.year, now.month, 1);
-  const monthEnd = lagosBoundary(now.year, now.month + 1, 1);
-  const yearStart = lagosBoundary(now.year, 0, 1);
-  const yearEnd = lagosBoundary(now.year + 1, 0, 1);
-  return { daily: [dayStart, nextDay], weekly: [weekStart, weekEnd], monthly: [monthStart, monthEnd], yearly: [yearStart, yearEnd] } as const;
-}
-
-async function summary(businessId: string, start: Date, end: Date) {
-  const rows = await db.sale.findMany({ where: { businessId, createdAt: { gte: start, lt: end }, paymentStatus: { not: 'CANCELLED' } }, select: { total: true, amountPaid: true, balance: true } });
-  return { count: rows.length, total: rows.reduce((a, x) => a + Number(x.total), 0), paid: rows.reduce((a, x) => a + Number(x.amountPaid), 0), balance: rows.reduce((a, x) => a + Number(x.balance), 0) };
-}
-
-export default async function Reports() {
+export default async function Reports({ searchParams }: { searchParams: Promise<{ period?: string; date?: string }> }) {
   const u = await requireUser();
-  const b = boundaries();
-  const [daily, weekly, monthly, yearly] = await Promise.all([
-    summary(u.businessId, ...b.daily), summary(u.businessId, ...b.weekly), summary(u.businessId, ...b.monthly), summary(u.businessId, ...b.yearly),
-  ]);
-  const cards = [['Today', daily, 'daily'], ['This week', weekly, 'weekly'], ['This month', monthly, 'monthly'], ['This year', yearly, 'yearly']];
-  return <Shell title="Sales Reports">
-    <div className="mb-6"><h2 className="text-xl font-bold">Sales reporting</h2><p className="text-sm text-gray-500">Daily, weekly, monthly and yearly figures using Nigeria time (Africa/Lagos). Cancelled receipts are excluded.</p></div>
-    <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">{cards.map(([label, s, period]) => { const x = s as Awaited<ReturnType<typeof summary>>; return <div className="card p-5" key={period as string}><div className="flex justify-between items-center"><span className="text-sm font-semibold">{label as string}</span><span className="text-xs text-gray-400">{x.count} sales</span></div><div className="text-xl font-black mt-3">{money(x.total)}</div><div className="text-xs text-green-700 mt-1">Collected {money(x.paid)}</div><div className="text-xs text-red-600">Outstanding {money(x.balance)}</div></div>; })}</div>
-    <ReportControls />
-    <div className="card p-5"><h3 className="font-bold mb-4">What the reports contain</h3><div className="grid md:grid-cols-2 gap-3 text-sm text-gray-600"><div>• Transaction count and total sales</div><div>• Amount collected and outstanding</div><div>• Receipt number and customer</div><div>• Payment method and sale total</div><div>• Cancelled receipts excluded</div><div>• Downloadable PDF for each period</div></div></div>
-  </Shell>;
+  const sp = await searchParams;
+  const period = toPeriod(sp.period);
+  const r = await getReport(u.businessId, period, sp.date);
+
+  const href = (p: string, date: string) => `/reports?period=${p}&date=${date}`;
+  const pdfHref = `/api/reports/pdf?period=${period}&date=${r.anchor}`;
+  const maxBucket = Math.max(1, ...r.buckets.map((b) => b.total));
+  const maxMethod = Math.max(1, ...r.methods.map((m) => m.total));
+
+  const cards: [string, string][] = [
+    ['Total sales', money(r.totals.total)],
+    ['Collected', money(r.totals.paid)],
+    ['Outstanding', money(r.totals.balance)],
+    ['Receipts', String(r.totals.count)],
+    ['Average sale', money(r.totals.average)],
+  ];
+
+  return (
+    <Shell title="Sales Reports">
+      <div className="card p-4 md:p-5 mb-6">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {PERIODS.map((p) => (
+            <a key={p.key} href={href(p.key, r.anchor)} className={`btn ${p.key === period ? 'btn-gold' : 'btn-light'}`}>{p.label}</a>
+          ))}
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+          <div className="flex items-center gap-2">
+            <a className="btn btn-light" href={href(period, r.prev)} aria-label="Previous period">←</a>
+            <div className="min-w-[200px] text-center">
+              <div className="text-lg font-black">{r.label}</div>
+              <div className="text-[11px] text-gray-400">Nigeria time (Africa/Lagos)</div>
+            </div>
+            <a className="btn btn-light" href={href(period, r.next)} aria-label="Next period">→</a>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <form method="get" className="flex items-center gap-2">
+              <input type="hidden" name="period" value={period} />
+              <input className="input" type="date" name="date" defaultValue={r.anchor} />
+              <button className="btn btn-light">Go</button>
+            </form>
+            <a className="btn btn-light" href={`/reports?period=${period}`}>Today</a>
+            <a className="btn btn-gold" href={pdfHref}>⬇ Download PDF</a>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400 mt-3">
+          Weekly reports run Monday to Sunday. Cancelled receipts are excluded
+          {r.totals.cancelled > 0 ? ` (${r.totals.cancelled} cancelled in this period)` : ''}.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+        {cards.map(([a, b], i) => (
+          <div className={`card p-4 md:p-5 ${i === 0 ? 'col-span-2 xl:col-span-1' : ''}`} key={a}>
+            <div className="text-xs text-gray-500">{a}</div>
+            <div className="text-lg md:text-xl font-bold mt-2 break-words">{b}</div>
+          </div>
+        ))}
+      </div>
+
+      {r.totals.count === 0 ? (
+        <div className="card p-10 text-center text-gray-400">No sales were recorded in this period.</div>
+      ) : (
+        <>
+          <div className="grid xl:grid-cols-2 gap-6 mb-6">
+            {r.buckets.length > 0 && (
+              <div className="card p-5">
+                <h2 className="font-bold text-lg mb-4">{r.bucketTitle}</h2>
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {r.buckets.map((b) => (
+                    <div key={b.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>{b.label} <span className="text-gray-400">· {b.count} receipt{b.count === 1 ? '' : 's'}</span></span>
+                        <span className="font-semibold">{money(b.total)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#f1ecdc]"><div className="h-2 rounded-full gold-bg" style={{ width: `${(b.total / maxBucket) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="card p-5">
+              <h2 className="font-bold text-lg mb-4">By payment method</h2>
+              <div className="space-y-3 mb-8">
+                {r.methods.map((m) => (
+                  <div key={m.name}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>{METHOD[m.name] ?? m.name} <span className="text-gray-400">· {m.count}</span></span>
+                      <span className="font-semibold">{money(m.total)}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[#f1ecdc]"><div className="h-2 rounded-full bg-[#171717]" style={{ width: `${(m.total / maxMethod) * 100}%` }} /></div>
+                  </div>
+                ))}
+              </div>
+              <h2 className="font-bold text-lg mb-3">Best-selling products</h2>
+              {r.products.slice(0, 5).map((p, i) => (
+                <div key={p.name} className="flex justify-between border-b last:border-0 py-2.5 text-sm">
+                  <div><b>{i + 1}. {p.name}</b><div className="text-xs text-gray-400">{p.qty} sold</div></div>
+                  <div className="font-semibold">{money(p.revenue)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-bold text-lg">Receipts in this period</h2>
+              <a className="text-sm font-semibold underline" href={pdfHref}>Download full list (PDF)</a>
+            </div>
+            {r.salesOmitted ? (
+              <p className="text-sm text-gray-500">Individual receipts are not listed for a whole year. Open a monthly report for receipt-level detail.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-y text-left text-xs text-gray-400">
+                      <th className="py-3">Receipt</th><th>Date &amp; time</th><th>Customer</th><th>Method</th><th>Status</th>
+                      <th className="text-right">Total</th><th className="text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {r.sales.slice(0, SHOW_LIMIT).map((s) => (
+                      <tr key={s.id} className="border-b">
+                        <td className="py-3"><a className="font-semibold underline" href={`/receipts/${s.id}`}>{s.receiptNumber}</a></td>
+                        <td className="text-gray-500 whitespace-nowrap">{fmtDateTime(s.at)}</td>
+                        <td>{s.customer}</td>
+                        <td>{METHOD[s.method] ?? s.method}</td>
+                        <td>{STATUS[s.status] ?? s.status}</td>
+                        <td className="text-right font-semibold whitespace-nowrap">{money(s.total)}</td>
+                        <td className={`text-right whitespace-nowrap ${s.balance > 0 ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>{money(s.balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {r.sales.length > SHOW_LIMIT && (
+                  <p className="text-xs text-gray-400 mt-3">Showing the first {SHOW_LIMIT} of {r.sales.length} receipts. The PDF contains all of them.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </Shell>
+  );
 }

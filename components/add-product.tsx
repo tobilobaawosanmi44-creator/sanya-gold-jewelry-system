@@ -55,14 +55,15 @@ export function AddProduct() {
       </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="label">Price (₦) *</label>
-          <input className="input" type="number" min="1" step="0.01" value={f.price} onChange={set('price')} required />
+          <label className="label">Reference price (₦, optional)</label>
+          <input className="input" type="number" min="0" step="0.01" value={f.price} onChange={set('price')} placeholder="Leave blank if it varies" />
         </div>
         <div>
           <label className="label">In stock *</label>
           <input className="input" type="number" min="0" step="1" value={f.stockQty} onChange={set('stockQty')} required />
         </div>
       </div>
+      <p className="text-[11px] text-gray-400 -mt-1 mb-3">Gold prices change, so you type the real price on every receipt.</p>
       <label className="label">Description</label>
       <input className="input mb-5" value={f.description} onChange={set('description')} />
       <button className="btn btn-gold w-full" disabled={busy}>{busy ? 'Saving…' : 'Save product'}</button>

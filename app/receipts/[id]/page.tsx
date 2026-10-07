@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { money } from '@/lib/utils';
 import QRCode from 'qrcode';
+import { CancelReceipt } from '@/components/cancel-receipt';
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const u = await requireUser();
@@ -25,6 +26,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           <a href="/receipts" className="btn btn-light">← Receipts</a>
           <div className="flex gap-2">
             <a className="btn btn-light" href={`/api/receipts/${s.id}/pdf`} target="_blank" rel="noreferrer">Print / Save as PDF</a>
+            {!cancelled && <CancelReceipt id={s.id} number={s.receipt.receiptNumber} />}
           </div>
         </div>
         <article className="bg-white border border-[#e6dfcf] shadow-xl p-6 md:p-10">
@@ -38,7 +40,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
             <div className="text-right">
               <div className="text-xs text-gray-400">RECEIPT</div>
               <div className="font-black">{s.receipt.receiptNumber}</div>
-              <div className="text-xs text-gray-500 mt-2">{new Date(s.createdAt).toLocaleString('en-NG')}</div>
+              <div className="text-xs text-gray-500 mt-2">{new Date(s.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' })}</div>
               {cancelled && <div className="mt-2 inline-block border-2 border-red-700 text-red-700 px-2 py-0.5 text-xs font-bold">CANCELLED</div>}
             </div>
           </div>

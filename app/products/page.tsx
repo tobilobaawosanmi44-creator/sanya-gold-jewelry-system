@@ -7,7 +7,12 @@ import { money } from '@/lib/utils';
 
 export default async function Products() {
   const u = await requireUser();
-  const rows = await db.product.findMany({ where: { businessId: u.businessId }, orderBy: [{ category: 'asc' }, { name: 'asc' }], take: 500 });
+  const rows = await db.product.findMany({
+    where: { businessId: u.businessId, active: true },
+    orderBy: [{ category: 'asc' }, { name: 'asc' }],
+    take: 500,
+    include: { _count: { select: { saleItems: true } } },
+  });
 
   return (
     <Shell title="Products">
@@ -15,13 +20,13 @@ export default async function Products() {
         <div className="card p-5">
           <div className="mb-5">
             <h2 className="font-bold text-lg">Catalogue</h2>
-            <p className="text-xs text-gray-400">{rows.length} products · edit or remove catalogue items below</p>
+            <p className="text-xs text-gray-400">{rows.length} products · you enter the actual price on each receipt</p>
           </div>
           <div className="table-wrap">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-y text-left text-xs text-gray-400">
-                  <th className="py-3">Product</th><th>SKU</th><th>Category</th><th className="text-right">Price</th><th className="text-right">In stock</th><th className="text-right">Actions</th>
+                  <th className="py-3">Product</th><th>SKU</th><th>Category</th><th className="text-right">Ref. price</th><th className="text-right">In stock</th><th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -30,9 +35,13 @@ export default async function Products() {
                     <td className="py-3"><b>{p.name}</b></td>
                     <td className="text-gray-500">{p.sku}</td>
                     <td>{p.category}</td>
-                    <td className="text-right">{money(p.price.toString())}</td>
+                    <td className="text-right">{Number(p.price) > 0 ? money(p.price.toString()) : <span className="text-gray-400">set per sale</span>}</td>
                     <td className={`text-right ${p.stockQty < 5 ? 'text-red-600 font-bold' : ''}`}>{p.stockQty}</td>
-                    <td className="text-right"><ProductManager product={{ ...p, price: p.price.toString(), description: p.description || '' }} /></td>
+                    <td className="text-right">
+                      <ProductManager
+                        product={{ id: p.id, name: p.name, sku: p.sku, category: p.category, price: p.price.toString(), stockQty: p.stockQty, description: p.description ?? '', timesSold: p._count.saleItems }}
+                      />
+                    </td>
                   </tr>
                 ))}
                 {rows.length === 0 && (

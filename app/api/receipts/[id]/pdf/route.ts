@@ -59,7 +59,7 @@ td.r{text-align:right}
     <div class="muted">${esc(b.description || '')}<br>${esc(b.address)}<br>${esc(b.phone)} · ${esc(b.email)}</div>
   </div>
   <div class="r"><div class="muted">RECEIPT</div><b>${esc(s.receipt.receiptNumber)}</b>
-    <div class="muted" style="margin-top:6px">${esc(new Date(s.createdAt).toLocaleString('en-NG'))}</div>
+    <div class="muted" style="margin-top:6px">${esc(new Date(s.createdAt).toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }))}</div>
     ${cancelled ? '<div class="stamp">CANCELLED</div>' : ''}
   </div>
 </div>
