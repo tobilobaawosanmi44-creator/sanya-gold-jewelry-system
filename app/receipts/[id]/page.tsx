@@ -4,6 +4,9 @@ import { notFound } from 'next/navigation';
 import { money } from '@/lib/utils';
 import QRCode from 'qrcode';
 import { CancelReceipt } from '@/components/cancel-receipt';
+import { ShareReceipt } from '@/components/share-receipt';
+import { emailConfigured } from '@/lib/mailer';
+import { receiptLinks, siteUrl } from '@/lib/site';
 
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const u = await requireUser();
@@ -14,18 +17,34 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   });
   if (!s || !s.receipt) return notFound();
 
-  const base = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-  const qr = await QRCode.toDataURL(`${base}/verify/${encodeURIComponent(s.receipt.receiptNumber)}`, { margin: 1, width: 260 });
+  const links = receiptLinks(s.receipt.verificationToken, siteUrl());
+  const qr = await QRCode.toDataURL(links.verify, { margin: 1, width: 260 });
   const b = s.business;
   const cancelled = s.receipt.status === 'CANCELLED';
 
   return (
     <main className="min-h-screen bg-[#f8f7f3] p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex justify-between mb-5">
+        <div className="flex flex-wrap justify-between gap-3 mb-5">
           <a href="/receipts" className="btn btn-light">← Receipts</a>
-          <div className="flex gap-2">
-            <a className="btn btn-light" href={`/api/receipts/${s.id}/pdf`} target="_blank" rel="noreferrer">Print / Save as PDF</a>
+          <div className="flex flex-wrap gap-2">
+            {!cancelled && (
+              <ShareReceipt
+                id={s.id}
+                number={s.receipt.receiptNumber}
+                customerName={s.customer.name}
+                customerPhone={s.customer.phone}
+                customerEmail={s.customer.email ?? ''}
+                total={money(s.total.toString())}
+                balance={money(s.balance.toString())}
+                balanceDue={Number(s.balance) > 0}
+                link={links.pdf}
+                businessName={b.name}
+                emailConfigured={emailConfigured()}
+              />
+            )}
+            <a className="btn btn-light" href={`/api/receipts/${s.id}/pdf?download=1`}>⬇ PDF</a>
+            <a className="btn btn-light" href={`/api/receipts/${s.id}/pdf`} target="_blank" rel="noreferrer">Print</a>
             {!cancelled && <CancelReceipt id={s.id} number={s.receipt.receiptNumber} />}
           </div>
         </div>
