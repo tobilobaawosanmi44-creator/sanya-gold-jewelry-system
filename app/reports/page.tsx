@@ -52,9 +52,10 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
               <button className="btn btn-light">Go</button>
             </form>
             <a className="btn btn-light" href={`/reports?period=${period}`}>Today</a>
-            <a className="btn btn-gold" href={pdfHref}>⬇ Download PDF</a>
             {isAdmin ? (
-              <details className="relative">
+              <>
+                <a className="btn btn-gold" href={pdfHref}>⬇ Download PDF</a>
+                <details className="relative">
                 <summary className="btn btn-light cursor-pointer list-none select-none">⬇ Export ▾</summary>
                 <div className="absolute right-0 mt-2 z-20 w-72 card p-2 shadow-xl">
                   <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('xlsx')}>
@@ -71,8 +72,9 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
                   </a>
                 </div>
               </details>
+              </>
             ) : (
-              <span className="text-xs text-gray-400 px-1" title="Only administrators can export reports">Export: admins only</span>
+              <span className="text-xs text-gray-400 px-1" title="Only administrators can download or export reports">Downloads &amp; exports: admins only</span>
             )}
           </div>
         </div>
@@ -138,7 +140,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
           <div className="card p-5">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-bold text-lg">Receipts in this period</h2>
-              <a className="text-sm font-semibold underline" href={pdfHref}>Download full list (PDF)</a>
+              {isAdmin && <a className="text-sm font-semibold underline" href={pdfHref}>Download full list (PDF)</a>}
             </div>
             {r.salesOmitted ? (
               <p className="text-sm text-gray-500">Individual receipts are not listed for a whole year. Open a monthly report for receipt-level detail.</p>
