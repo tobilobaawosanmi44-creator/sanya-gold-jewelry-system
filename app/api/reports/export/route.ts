@@ -10,6 +10,15 @@ type Format = (typeof FORMATS)[number];
 // Sales report export: ?period=day|week|month|year&date=YYYY-MM-DD&format=xlsx|csv|csv-items
 export async function GET(req: Request) {
   const u = await requireUser();
+
+  // Exports contain customer names and phone numbers, so only administrators may download them.
+  if (u.role !== 'SUPER_ADMIN') {
+    await db.auditLog
+      .create({ data: { businessId: u.businessId, userId: u.id, action: 'REPORT_EXPORT_DENIED', recordType: 'REPORT' } })
+      .catch(() => undefined);
+    return NextResponse.json({ error: 'Only an administrator can export reports.' }, { status: 403 });
+  }
+
   const q = new URL(req.url).searchParams;
   const period = toPeriod(q.get('period'));
   const date = q.get('date') ?? undefined;

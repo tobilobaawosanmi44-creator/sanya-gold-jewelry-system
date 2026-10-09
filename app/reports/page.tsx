@@ -12,6 +12,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
   const sp = await searchParams;
   const period = toPeriod(sp.period);
   const r = await getReport(u.businessId, period, sp.date);
+  const isAdmin = u.role === 'SUPER_ADMIN';
 
   const href = (p: string, date: string) => `/reports?period=${p}&date=${date}`;
   const pdfHref = `/api/reports/pdf?period=${period}&date=${r.anchor}`;
@@ -52,23 +53,27 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
             </form>
             <a className="btn btn-light" href={`/reports?period=${period}`}>Today</a>
             <a className="btn btn-gold" href={pdfHref}>⬇ Download PDF</a>
-            <details className="relative">
-              <summary className="btn btn-light cursor-pointer list-none select-none">⬇ Export ▾</summary>
-              <div className="absolute right-0 mt-2 z-20 w-72 card p-2 shadow-xl">
-                <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('xlsx')}>
-                  <b className="text-sm">Excel workbook (.xlsx)</b>
-                  <div className="text-xs text-gray-500">Summary, all receipts and items sold, in separate sheets</div>
-                </a>
-                <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('csv')}>
-                  <b className="text-sm">CSV: receipts</b>
-                  <div className="text-xs text-gray-500">One row per receipt, for other software</div>
-                </a>
-                <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('csv-items')}>
-                  <b className="text-sm">CSV: items sold</b>
-                  <div className="text-xs text-gray-500">One row per item on every receipt</div>
-                </a>
-              </div>
-            </details>
+            {isAdmin ? (
+              <details className="relative">
+                <summary className="btn btn-light cursor-pointer list-none select-none">⬇ Export ▾</summary>
+                <div className="absolute right-0 mt-2 z-20 w-72 card p-2 shadow-xl">
+                  <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('xlsx')}>
+                    <b className="text-sm">Excel workbook (.xlsx)</b>
+                    <div className="text-xs text-gray-500">Summary, all receipts and items sold, in separate sheets</div>
+                  </a>
+                  <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('csv')}>
+                    <b className="text-sm">CSV: receipts</b>
+                    <div className="text-xs text-gray-500">One row per receipt, for other software</div>
+                  </a>
+                  <a className="block rounded-xl p-3 hover:bg-[#faf7ed]" href={exportHref('csv-items')}>
+                    <b className="text-sm">CSV: items sold</b>
+                    <div className="text-xs text-gray-500">One row per item on every receipt</div>
+                  </a>
+                </div>
+              </details>
+            ) : (
+              <span className="text-xs text-gray-400 px-1" title="Only administrators can export reports">Export: admins only</span>
+            )}
           </div>
         </div>
         <p className="text-xs text-gray-400 mt-3">
