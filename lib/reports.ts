@@ -95,7 +95,14 @@ export type Report = {
   salesOmitted: boolean;
 };
 
-export async function getReport(businessId: string, period: Period, dateStr?: string): Promise<Report> {
+// The exact start/end (in real UTC time) of the Nigerian day/week/month/year containing `dateStr`.
+export function resolvePeriod(period: Period, dateStr?: string) {
+  const dayMs = parseDay(dateStr);
+  const { a, b } = calRange(period, dayMs);
+  return { anchor: ymd(dayMs), from: new Date(a - OFFSET), to: new Date(b - OFFSET) };
+}
+
+export async function getReport(businessId: string, period: Period, dateStr?: string, opts: { allProducts?: boolean } = {}): Promise<Report> {
   const dayMs = parseDay(dateStr);
   const { a, b } = calRange(period, dayMs);
   const from = new Date(a - OFFSET);
@@ -199,7 +206,7 @@ export async function getReport(businessId: string, period: Period, dateStr?: st
     products: [...productMap.entries()]
       .map(([name, v]) => ({ name, qty: v.qty, revenue: r2(v.revenue) }))
       .sort((x, y) => y.revenue - x.revenue)
-      .slice(0, 10),
+      .slice(0, opts.allProducts ? 1000 : 10),
     sales: salesOmitted
       ? []
       : rows.map((s) => ({

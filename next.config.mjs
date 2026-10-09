@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // pdfkit reads its own data files at runtime, so it must not be bundled.
-  serverExternalPackages: ['pdfkit'],
+  // These read their own data files at runtime, so they must not be bundled.
+  serverExternalPackages: ['pdfkit', 'exceljs'],
 };
 
 export default nextConfig;
